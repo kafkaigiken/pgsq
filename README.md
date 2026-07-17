@@ -77,11 +77,24 @@ result.refresh()
 
 ### Per-tenant slots (fair queuing)
 
+Each task carries a **tenant** (the `username` column of `pgsq_task`). The
+worker's fair-queuing slots key off it, so one busy tenant can't starve the
+rest. Set the tenant per-enqueue with `.using(username=...)`:
+
+```python
+result = send_welcome_email.using(username="user@example.com").enqueue(
+    "user@example.com"
+)
+```
+
+Tasks enqueued without a tenant land on the `"default"` tenant. Configure
+per-tenant concurrency limits:
+
 ```python
 from pgsq.models import PgsqTaskSlot
 
-PgsqTaskSlot.objects.create(username="tenant_1", slots=5)
-PgsqTaskSlot.objects.create(username="tenant_2", slots=2)
+PgsqTaskSlot.objects.create(username="user@example.com", slots=5)
+PgsqTaskSlot.objects.create(username="another@example.com", slots=2)
 ```
 
 Tenants with no slot record default to 3 concurrent tasks.

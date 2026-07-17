@@ -1,9 +1,9 @@
 import logging
+from dataclasses import dataclass, replace
 
 from django.utils import timezone
 from django.utils.crypto import get_random_string
 from django.utils.module_loading import import_string
-
 from django_tasks import TaskResult, TaskResultStatus
 from django_tasks.backends.base import BaseTaskBackend
 from django_tasks.base import Task, TaskError
@@ -15,6 +15,27 @@ from pgsq.models import PgsqTask
 logger = logging.getLogger(__name__)
 
 
+@dataclass(frozen=True, kw_only=True)
+class TenantTask(Task):
+    """``Task`` subclass that carries a per-enqueue tenant identifier.
+
+    pgsq is multi-tenant: the worker's fair-queuing slots key off the
+    ``username`` column of ``pgsq_task``.  Django's Tasks API has no tenant
+    concept, so this subclass adds one as a task attribute, set per-call via
+    ``my_task.using(username=...).enqueue(...)``.  Tasks enqueued without a
+    tenant stay on the ``"default"`` tenant, preserving the original behavior.
+    """
+
+    username: str = "default"
+
+    def using(self, *, username: str | None = None, **kwargs):
+        """Like ``Task.using``, but also lets callers override the tenant."""
+        new_task = super().using(**kwargs)
+        if username is not None:
+            return replace(new_task, username=username)
+        return new_task
+
+
 class PgsqBackend(BaseTaskBackend):
     """PostgreSQL-backed task queue backend for Django's Tasks API.
 
@@ -22,6 +43,8 @@ class PgsqBackend(BaseTaskBackend):
     per-tenant slot limits (``PgsqTaskSlot``).  Enqueued tasks are picked
     up by a separate worker process (``manage.py pgsq_worker``).
     """
+
+    task_class = TenantTask
 
     supports_defer = True
     supports_get_result = True
@@ -47,7 +70,7 @@ class PgsqBackend(BaseTaskBackend):
             run_after=task.run_after,
             takes_context=task.takes_context,
             backend_alias=task.backend,
-            username="default",
+            username=task.username,
             name=task.name or "",
             status=TaskResultStatus.READY,
             args=normalized_args,
@@ -79,9 +102,7 @@ class PgsqBackend(BaseTaskBackend):
         try:
             row = PgsqTask.objects.get(task_id=result_id)
         except PgsqTask.DoesNotExist:
-            raise TaskResultDoesNotExist(
-                f"Task result {result_id!r} does not exist."
-            )
+            raise TaskResultDoesNotExist(f"Task result {result_id!r} does not exist.")
 
         task = self._reconstruct_task(row)
         errors = [TaskError(**e) for e in (row.errors or [])]
@@ -139,11 +160,12 @@ class PgsqBackend(BaseTaskBackend):
         if isinstance(func, Task):
             func = func.func
 
-        return Task(
+        return self.task_class(
             func=func,
             priority=row.priority,
             queue_name=row.queue_name,
             run_after=row.run_after,
             takes_context=row.takes_context,
             backend=row.backend_alias,
+            username=row.username,
         )

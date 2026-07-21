@@ -1,23 +1,29 @@
-[tool.poetry]
+[project]
 name = "pgsq"
-version = "0.1.0"
-description = ""
-authors = ["Kamal Mustafa"]
-license = "MIT"
-
-[tool.poetry.dependencies]
-python = "^3.8"
-peewee = "^3.14.8"
-psycopg2 = "^2.9.2"
-human-id = "^0.1.0"
-Pebble = "^4.6.3"
-logzero = "^1.7.0"
-
-[tool.poetry.scripts]
-pgsq = 'pgsq:run'
-
-[tool.poetry.dev-dependencies]
+version = "0.2.0"
+description = "PostgreSQL-backed multi-tenant task queue for Django's Tasks API"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Kamal Mustafa" },
+    { name = "Kafkai Giken" },
+]
+requires-python = ">=3.12"
+dependencies = [
+    "django-tasks>=0.12.0",
+    "psycopg2-binary>=2.9.2",
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project.entry-points."django.apps"]
+pgsq = "pgsq.apps.PgsqConfig"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["pgsq*"]
+
+[tool.setuptools.package-data]
+pgsq = ["py.typed"]

@@ -20,19 +20,19 @@ class TenantTask(Task):
     """``Task`` subclass that carries a per-enqueue tenant identifier.
 
     pgsq is multi-tenant: the worker's fair-queuing slots key off the
-    ``username`` column of ``pgsq_task``.  Django's Tasks API has no tenant
+    ``tenant_id`` column of ``pgsq_task``.  Django's Tasks API has no tenant
     concept, so this subclass adds one as a task attribute, set per-call via
-    ``my_task.using(username=...).enqueue(...)``.  Tasks enqueued without a
+    ``my_task.using(tenant_id=...).enqueue(...)``.  Tasks enqueued without a
     tenant stay on the ``"default"`` tenant, preserving the original behavior.
     """
 
-    username: str = "default"
+    tenant_id: str = "default"
 
-    def using(self, *, username: str | None = None, **kwargs):
+    def using(self, *, tenant_id: str | None = None, **kwargs):
         """Like ``Task.using``, but also lets callers override the tenant."""
         new_task = super().using(**kwargs)
-        if username is not None:
-            return replace(new_task, username=username)
+        if tenant_id is not None:
+            return replace(new_task, tenant_id=tenant_id)
         return new_task
 
 
@@ -70,7 +70,7 @@ class PgsqBackend(BaseTaskBackend):
             run_after=task.run_after,
             takes_context=task.takes_context,
             backend_alias=task.backend,
-            username=task.username,
+            tenant_id=task.tenant_id,
             name=task.name or "",
             status=TaskResultStatus.READY,
             args=normalized_args,
@@ -167,5 +167,5 @@ class PgsqBackend(BaseTaskBackend):
             run_after=row.run_after,
             takes_context=row.takes_context,
             backend=row.backend_alias,
-            username=row.username,
+            tenant_id=row.tenant_id,
         )

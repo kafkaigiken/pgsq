@@ -52,24 +52,24 @@ def _claim_task() -> str | None:
     sql = """
     WITH running_jobs_per_queue AS (
         SELECT
-            username,
+            tenant_id,
             count(1) AS running_jobs
         FROM pgsq_task
         WHERE status IN ('RUNNING')
           AND created_at > NOW() - INTERVAL '6 hours'
-        GROUP BY username
+        GROUP BY tenant_id
     ),
     full_queues AS (
-        SELECT R.username
+        SELECT R.tenant_id
         FROM running_jobs_per_queue R
-        LEFT JOIN pgsq_task_slot Q ON R.username = Q.username
+        LEFT JOIN pgsq_task_slot Q ON R.tenant_id = Q.tenant_id
         WHERE R.running_jobs >= COALESCE(Q.slots, %s)
     ),
     candidate AS (
         SELECT task_id
         FROM pgsq_task
         WHERE status IN ('READY', 'FAILED')
-          AND username NOT IN (SELECT username FROM full_queues)
+          AND tenant_id NOT IN (SELECT tenant_id FROM full_queues)
           AND retry_time <= NOW()
         ORDER BY priority DESC, created_at ASC
         FOR UPDATE SKIP LOCKED

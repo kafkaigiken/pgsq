@@ -24,7 +24,7 @@ class PgsqTask(models.Model):
     backend_alias = models.CharField(max_length=255, default="default")
 
     # --- Tenant identifier (original pgsq concept) ---
-    username = models.CharField(
+    tenant_id = models.CharField(
         max_length=255, db_index=True, default="default"
     )
 
@@ -71,7 +71,7 @@ class PgsqTask(models.Model):
         ]
 
     def __str__(self):
-        return f"[{self.status}] {self.name or self.func_path} ({self.username})"
+        return f"[{self.status}] {self.name or self.func_path} ({self.tenant_id})"
 
 
 class PgsqTaskSlot(models.Model):
@@ -82,7 +82,7 @@ class PgsqTaskSlot(models.Model):
     no ``PgsqTaskSlot`` record default to a limit of 3.
     """
 
-    username = models.CharField(max_length=255, unique=True)
+    tenant_id = models.CharField(max_length=255, unique=True)
     slots = models.IntegerField()
 
     class Meta:
@@ -91,4 +91,4 @@ class PgsqTaskSlot(models.Model):
         verbose_name_plural = "pgsq task slots"
 
     def __str__(self):
-        return f"{self.username}: {self.slots} slots"
+        return f"{self.tenant_id}: {self.slots} slots"
